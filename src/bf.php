@@ -41,7 +41,7 @@ function parse(string $code): array {
         }
     }
     if ($braces != 0) {
-        error(false, "syntax error: unmatched braces in program", $braces);
+        error(false, "syntax error: unmatched braces in program", null);
     }
     return $xs;
 }
