@@ -1,6 +1,6 @@
 <?php
 
-const MEMORY = 2000; # 2KB
+const DEFAULT_MEMORY = 2000; # 2KB
 
 enum Op
 {
@@ -46,8 +46,8 @@ function parse(string $code): array {
     return $xs;
 }
 
-function run(array $program, bool $repl) {
-    $mem = array_fill(0, MEMORY, 0);
+function run(array $program, bool $repl, int $capacity) {
+    $mem = array_fill(0, $capacity, 0);
     $cursor = 0;
     for ($ip = 0; $ip < count($program); $ip++) {
         $pos = $program[$ip][0];
@@ -62,7 +62,7 @@ function run(array $program, bool $repl) {
                 break;
             case Op::Forward:
                 $cursor++;
-                if ($cursor >= MEMORY) {
+                if ($cursor >= $capacity) {
                     error($repl, "memory overflow", $pos);
                 }
                 break;
@@ -109,11 +109,43 @@ function run(array $program, bool $repl) {
     }
 }
 
-function program(array $argv): string | null {
-    if (count($argv) < 2) {
-        return null;
+class Arguments {
+    public string | null $path;
+    public int $memory;
+
+    public function __construct(string | null $path, int $memory) {
+        $this->path = $path;
+        $this->memory = $memory;
     }
-    return $argv[1];
+}
+
+function parse_arguments(array $argv): Arguments | null {
+    $path = null;
+    $memory = DEFAULT_MEMORY;
+
+    for ($i = 1; $i < count($argv); $i++) {
+        if ($argv[$i] === "-m") {
+            if (!isset($argv[$i + 1])) {
+                error(false, "missing value for -m flag", null);
+            }
+            if (!ctype_digit($argv[$i + 1])) {
+                error(false, "-m flag value must be an integer", null);
+            }
+
+            $memory = (int)$argv[$i + 1];
+            if ($memory < DEFAULT_MEMORY) {
+                echo "bf: warning: memory capacity is set to less than 2KB. It may cause unexpected memory overflow\n";
+            }
+            $i++;
+        } else {
+            if ($path !== null) {
+                error(false, "unrecognized positional argument $path", null);
+            }
+            $path = $argv[$i];
+        }
+    }
+
+    return new Arguments($path, $memory);
 }
 
 function read_to_string(string $path): string {
@@ -130,7 +162,7 @@ function read_to_string(string $path): string {
     return $xs;
 }
 
-function repl() {
+function repl(int $capacity) {
     $program = "";
 
     echo "bf repl\n";
@@ -144,7 +176,7 @@ function repl() {
         if ($input === "Q") {
             die;
         } elseif ($input === "R") {
-            run(parse($program), true);
+            run(parse($program), true, $capacity);
         } elseif ($input === "X") {
             $program = "";
         } else {
@@ -154,13 +186,13 @@ function repl() {
 }
 
 function main(array $argv) {
-    $program = program($argv);
-    if ($program == null) {
-        repl();
+    $args = parse_arguments($argv);
+
+    if ($args->path === null) {
+        repl($args->memory);
     } else {
-        $xs = read_to_string($program);
-        // var_dump(parse($xs));
-        run(parse($xs), false);
+        $xs = read_to_string($args->path);
+        run(parse($xs), false, $args->memory);
     }
 }
 
