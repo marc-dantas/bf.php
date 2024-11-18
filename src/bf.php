@@ -2,8 +2,19 @@
 
 const DEFAULT_MEMORY = 2000; # 2KB
 
-enum Op
-{
+class Op {
+    public int $repeat;
+    public OpKind $kind;
+    public int $pos;
+
+    public function __construct(int $repeat, OpKind $kind, int $pos) {
+        $this->repeat = $repeat;
+        $this->kind = $kind;
+        $this->pos = $pos;
+    }
+}
+
+enum OpKind {
     case Add;
     case Sub;
     case Input;
@@ -15,10 +26,10 @@ enum Op
 }
 
 function error(bool $repl, string $message, int | null $pos) {
-    if ($pos == null) {
-        echo "bf: error: " . $message;
+    if ($pos === null) {
+        echo "bf: error: " . $message . PHP_EOL;
     } else {
-        echo "bf: error at character position " . $pos . ": " . $message;
+        echo "bf: error at character position " . $pos . ": " . $message . PHP_EOL;
     }
     if (!$repl) {
         die(1);
@@ -26,21 +37,48 @@ function error(bool $repl, string $message, int | null $pos) {
 }
 
 function parse(string $code): array {
-    $xs = array();
+    $xs = [];
     $braces = 0;
-    foreach (str_split($code) as $c => $i) {
-        switch ($i) {
-            case ".": array_push($xs, [$c, Op::Output]); break;
-            case ",": array_push($xs, [$c, Op::Input]); break;
-            case "+": array_push($xs, [$c, Op::Add]); break;
-            case "-": array_push($xs, [$c, Op::Sub]); break;
-            case ">": array_push($xs, [$c, Op::Forward]); break;
-            case "<": array_push($xs, [$c, Op::Back]); break;
-            case "[": array_push($xs, [$c, Op::Loop]); $braces += 1; break;
-            case "]": array_push($xs, [$c, Op::Endloop]); $braces -= 1; break;
+    $length = strlen($code);
+    $i = 0;
+    while ($i < $length) {
+        $char = $code[$i];
+        $repeat = 1;
+        switch ($char) {
+            case '+':
+            case '-':
+            case '>':
+            case '<':
+                while ($i + 1 < $length && $code[$i + 1] === $char) {
+                    $repeat++;
+                    $i++;
+                }
+                $kind = match ($char) {
+                    '+' => OpKind::Add,
+                    '-' => OpKind::Sub,
+                    '>' => OpKind::Forward,
+                    '<' => OpKind::Back,
+                };
+                $xs[] = new Op($repeat, $kind, $i);
+                break;
+            case '.':
+                $xs[] = new Op(1, OpKind::Output, $i);
+                break;
+            case ',':
+                $xs[] = new Op(1, OpKind::Input, $i);
+                break;
+            case '[':
+                $xs[] = new Op(1, OpKind::Loop, $i);
+                $braces++;
+                break;
+            case ']':
+                $xs[] = new Op(1, OpKind::Endloop, $i);
+                $braces--;
+                break;
         }
+        $i++;
     }
-    if ($braces != 0) {
+    if ($braces !== 0) {
         error(false, "syntax error: unmatched braces in program", null);
     }
     return $xs;
@@ -50,59 +88,59 @@ function run(array $program, bool $repl, int $capacity) {
     $mem = array_fill(0, $capacity, 0);
     $cursor = 0;
     for ($ip = 0; $ip < count($program); $ip++) {
-        $pos = $program[$ip][0];
-        $op = $program[$ip][1];
+        $op = $program[$ip];
+        $pos = $program[$ip]->pos;
         
-        switch ($op) {
-            case Op::Add:
-                $mem[$cursor]++;
+        switch ($op->kind) {
+            case OpKind::Add:
+                $mem[$cursor] += $op->repeat;
                 break;
-            case Op::Sub:
-                $mem[$cursor]--;
+            case OpKind::Sub:
+                $mem[$cursor] -= $op->repeat;
                 break;
-            case Op::Forward:
-                $cursor++;
+            case OpKind::Forward:
+                $cursor += $op->repeat;
                 if ($cursor >= $capacity) {
                     error($repl, "memory overflow", $pos);
                 }
                 break;
-            case Op::Back:
-                $cursor--;
+            case OpKind::Back:
+                $cursor -= $op->repeat;
                 if ($cursor < 0) {
                     error($repl, "memory underflow", $pos);
                 }
                 break;
-            case Op::Loop:
+            case OpKind::Loop:
                 if ($mem[$cursor] == 0) {
                     $loopCount = 1;
                     while ($loopCount > 0) {
                         $ip++;
-                        if ($program[$ip][1] === Op::Loop) {
+                        if ($program[$ip]->kind === OpKind::Loop) {
                             $loopCount++;
-                        } elseif ($program[$ip][1] === Op::Endloop) {
+                        } elseif ($program[$ip]->kind === OpKind::Endloop) {
                             $loopCount--;
                         }
                     }
                 }
                 break;
-            case Op::Endloop:
+            case OpKind::Endloop:
                 if ($mem[$cursor] != 0) {
                     $loopCount = 1;
                     while ($loopCount > 0) {
                         $ip--;
-                        if ($program[$ip][1] === Op::Endloop) {
+                        if ($program[$ip]->kind === OpKind::Endloop) {
                             $loopCount++;
-                        } elseif ($program[$ip][1] === Op::Loop) {
+                        } elseif ($program[$ip]->kind === OpKind::Loop) {
                             $loopCount--;
                         }
                     }
                 }
                 break;
-            case Op::Input:
-                $input = fgets(STDIN);
-                $mem[$cursor] = ord($input[0] ?? "\0");
+            case OpKind::Input:
+                $input = fread(STDIN, 1);
+                $mem[$cursor] = ord($input ?? "\0");
                 break;
-            case Op::Output:
+            case OpKind::Output:
                 echo chr($mem[$cursor]);
                 break;
         }
