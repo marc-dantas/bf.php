@@ -214,13 +214,16 @@ function repl(int $capacity) {
     echo "write Q and hit enter to quit\n\n";
 
     while (true) {
-        echo "\n";
         $input = trim(fgets(STDIN));
         if ($input === "Q") {
+            echo "QUIT\n";
             die;
         } elseif ($input === "R") {
+            echo "RUN\n";
             run(parse($program), true, $capacity);
+            echo "\nEND\n\n";
         } elseif ($input === "X") {
+            echo "CLEAR\n\n";
             $program = "";
         } else {
             $program .= $input;
