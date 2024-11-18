@@ -150,19 +150,16 @@ function run(array $program, bool $repl, int $capacity) {
 class Arguments {
     public string | null $path;
     public int $memory;
-    public bool $debug;
 
-    public function __construct(string | null $path, int $memory, bool $debug) {
+    public function __construct(string | null $path, int $memory) {
         $this->path = $path;
         $this->memory = $memory;
-        $this->debug = $debug;
     }
 }
 
 function parse_arguments(array $argv): Arguments | null {
     $path = null;
     $memory = DEFAULT_MEMORY;
-    $debug = false;
 
     for ($i = 1; $i < count($argv); $i++) {
         if ($argv[$i] === "-m") {
@@ -178,8 +175,6 @@ function parse_arguments(array $argv): Arguments | null {
                 echo "bf: warning: memory capacity is set to less than 2KB. It may cause unexpected memory overflow\n";
             }
             $i++;
-        } elseif ($argv[$i] === "-debug") {
-            $debug = true;
         } else {
             if ($path !== null) {
                 error(false, "unrecognized positional argument $path", null);
@@ -188,7 +183,7 @@ function parse_arguments(array $argv): Arguments | null {
         }
     }
 
-    return new Arguments($path, $memory, $debug);
+    return new Arguments($path, $memory);
 }
 
 function read_to_string(string $path): string {
@@ -233,10 +228,6 @@ function repl(int $capacity) {
 
 function main(array $argv) {
     $args = parse_arguments($argv);
-
-    if ($args->debug) {
-        # debugger implementation
-    }
 
     if ($args->path === null) {
         repl($args->memory);
